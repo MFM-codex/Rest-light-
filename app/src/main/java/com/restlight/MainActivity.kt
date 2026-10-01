@@ -155,9 +155,43 @@ class MainActivity : Activity() {
         comfort.addView(text("Works over every app. Tap Stop to remove it.", 14f, mute).apply { setPadding(0, dp(10), 0, 0) })
         root.addView(comfort)
 
+        val fontCard = cardBox()
+        fontCard.addView(text("Phone text size (all apps)", 20f, bold = true))
+        val current = try { Settings.System.getFloat(contentResolver, Settings.System.FONT_SCALE) } catch (e: Exception) { 1f }
+        val fontLabel = text("${(current * 100).toInt()}%", 17f, mute).apply { setPadding(0, dp(10), 0, 0) }
+        fontCard.addView(fontLabel)
+        fontCard.addView(SeekBar(this).apply {
+            max = 65
+            progress = ((current - 0.85f) * 100).toInt().coerceIn(0, 65)
+            progressTintList = ColorStateList.valueOf(accent)
+            thumbTintList = ColorStateList.valueOf(accent)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {
+                    if (fromUser) fontLabel.text = "${85 + p}%"
+                }
+                override fun onStartTrackingTouch(sb: SeekBar) {}
+                override fun onStopTrackingTouch(sb: SeekBar) { setPhoneFont(0.85f + sb.progress / 100f) }
+            })
+        })
+        fontCard.addView(text("Changes the text size in WhatsApp and other apps. Set 100% for normal.", 14f, mute).apply { setPadding(0, dp(10), 0, 0) })
+        root.addView(fontCard)
+
         status = text("", 15f, mute).apply { setPadding(dp(4), dp(16), 0, 0) }
         root.addView(status)
         setContentView(ScrollView(this).apply { addView(root); isFillViewport = true; setBackgroundColor(bg) })
+    }
+
+    private fun setPhoneFont(scale: Float) {
+        if (!Settings.System.canWrite(this)) {
+            Toast.makeText(this, "Allow \"Modify system settings\" for Restlight, then try again.", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+            return
+        }
+        try {
+            Settings.System.putFloat(contentResolver, Settings.System.FONT_SCALE, scale)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Your phone blocked this. Use Settings > Display > Font size instead.", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun start() {
