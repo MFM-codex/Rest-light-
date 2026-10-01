@@ -4,6 +4,8 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.LayerDrawable
 import android.graphics.PixelFormat
 import android.os.*
 import android.view.*
@@ -18,10 +20,12 @@ class BreakService : Service() {
     private var countdown: CountDownTimer? = null
     private val showBreak = Runnable { startBreak() }
     private var snoozeUsed = false
+    private var tintView: View? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(1, buildNotification())
-        scheduleNextBreak()
+        applyTint()
+        if (intent?.action != "tint") scheduleNextBreak()
         return START_STICKY
     }
 
@@ -31,6 +35,32 @@ class BreakService : Service() {
         handler.removeCallbacks(showBreak)
         val workMs = prefs().getInt("workMin", 20) * 60_000L
         handler.postDelayed(showBreak, workMs)
+    }
+
+    // Whole-phone warm + dim layer. Touches pass straight through it.
+    private fun applyTint() {
+        val warm = prefs().getInt("warm", 0)
+        val dim = prefs().getInt("dim", 0)
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        if (tintView == null) {
+            val v = View(this)
+            val lp = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            wm.addView(v, lp)
+            tintView = v
+        }
+        tintView!!.background = LayerDrawable(arrayOf(
+            ColorDrawable(Color.argb((warm * 1.15).toInt(), 255, 140, 30)),
+            ColorDrawable(Color.argb((dim * 2.55).toInt(), 0, 0, 0))
+        ))
     }
 
     private fun startBreak() {
@@ -132,6 +162,8 @@ class BreakService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(showBreak)
         endBreak(reschedule = false)
+        tintView?.let { try { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(it) } catch (_: Exception) {} }
+        tintView = null
         super.onDestroy()
     }
 
