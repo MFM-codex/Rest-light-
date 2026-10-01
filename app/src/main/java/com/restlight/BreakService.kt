@@ -44,9 +44,12 @@ class BreakService : Service() {
         return START_STICKY
     }
 
-    private fun scheduleNextBreak() {
+    private fun scheduleNextBreak() = postBreakIn(prefs().getInt("workMin", 20) * 60_000L)
+
+    private fun postBreakIn(ms: Long) {
         handler.removeCallbacks(showBreak)
-        handler.postDelayed(showBreak, prefs().getInt("workMin", 20) * 60_000L)
+        prefs().edit().putLong("nextAt", System.currentTimeMillis() + ms).apply()
+        handler.postDelayed(showBreak, ms)
     }
 
     // Filter is on unless toggled off, and (if a schedule is set) only inside its hours.
@@ -87,7 +90,7 @@ class BreakService : Service() {
         if (!(getSystemService(POWER_SERVICE) as PowerManager).isInteractive) { scheduleNextBreak(); return }
         val mode = (getSystemService(AUDIO_SERVICE) as AudioManager).mode
         if (mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION) {
-            handler.postDelayed(showBreak, 60_000L); return
+            postBreakIn(60_000L); return
         }
         val breakSec = prefs().getInt("breakSec", 20)
         val view = buildOverlay()
@@ -153,7 +156,7 @@ class BreakService : Service() {
                     snoozeUsed = true
                     Stats.add(this@BreakService, 1)
                     endBreak(reschedule = false)
-                    handler.postDelayed(showBreak, 5 * 60_000L)
+                    postBreakIn(5 * 60_000L)
                 }
             })
         }

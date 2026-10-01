@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
 import android.widget.*
 
@@ -31,6 +32,10 @@ class MainActivity : Activity() {
     private lateinit var snoozeBox: CheckBox
     private lateinit var status: TextView
     private lateinit var statsText: TextView
+    private lateinit var ring: RingView
+    private val ticker = object : Runnable {
+        override fun run() { refreshRing(); ring.postDelayed(this, 1000L) }
+    }
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
@@ -113,6 +118,13 @@ class MainActivity : Activity() {
         root.addView(text("Restlight", 34f, bold = true))
         root.addView(text("Gentle eye care for long study nights", 16f, mute))
 
+        ring = RingView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(220), dp(220)).apply {
+                gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(20)
+            }
+        }
+        root.addView(ring)
+
         root.addView(CheckBox(this).apply {
             text = "Large text mode"
             setTextColor(ink); textSize = 17f * scale
@@ -141,7 +153,7 @@ class MainActivity : Activity() {
         }
         row.addView(pill("Start", true) { start() })
         row.addView(pill("Stop", false) {
-            prefs.edit().putBoolean("running", false).apply()
+            prefs.edit().putBoolean("running", false).putLong("nextAt", 0L).apply()
             stopService(Intent(this, BreakService::class.java))
             status.text = "Stopped. Screen filter is off too."
         })
@@ -221,6 +233,29 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::statsText.isInitialized) statsText.text = statsLine()
+        ring.removeCallbacks(ticker); ring.post(ticker)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ring.removeCallbacks(ticker)
+    }
+
+    private fun refreshRing() {
+        val next = prefs.getLong("nextAt", 0L)
+        val total = prefs.getInt("workMin", 20) * 60_000L
+        val left = next - System.currentTimeMillis()
+        if (!prefs.getBoolean("running", false) || next == 0L) {
+            ring.label = "--:--"; ring.sub = "Not running"; ring.fraction = 0f
+        } else if (left <= 0) {
+            ring.label = "Break"; ring.sub = "time to rest"; ring.fraction = 0f
+        } else {
+            val sec = (left + 999) / 1000
+            ring.label = "%02d:%02d".format(sec / 60, sec % 60)
+            ring.sub = "until eye break"
+            ring.fraction = (left.toFloat() / total).coerceIn(0f, 1f)
+        }
+        ring.invalidate()
     }
 
     private fun setPhoneFont(scale: Float) {
