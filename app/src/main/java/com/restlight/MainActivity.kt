@@ -25,6 +25,7 @@ class MainActivity : Activity() {
     private val accent = Color.parseColor("#7CC0B6")
 
     private lateinit var prefs: android.content.SharedPreferences
+    private var scale = 1f
     private lateinit var workInput: EditText
     private lateinit var breakInput: EditText
     private lateinit var snoozeBox: CheckBox
@@ -38,7 +39,7 @@ class MainActivity : Activity() {
     }
 
     private fun text(s: String, size: Float, color: Int = ink, bold: Boolean = false) = TextView(this).apply {
-        text = s; textSize = size; setTextColor(color)
+        text = s; textSize = size * scale; setTextColor(color)
         if (bold) setTypeface(Typeface.DEFAULT_BOLD, Typeface.BOLD)
     }
 
@@ -50,16 +51,16 @@ class MainActivity : Activity() {
     }
 
     private fun pill(label: String, filled: Boolean, onClick: () -> Unit) = Button(this).apply {
-        text = label; textSize = 17f; isAllCaps = false; stateListAnimator = null
+        text = label; textSize = 17f * scale; isAllCaps = false; stateListAnimator = null
         setTypeface(Typeface.DEFAULT_BOLD, Typeface.BOLD)
         setTextColor(if (filled) bg else ink)
         background = if (filled) shape(accent, 14) else shape(Color.TRANSPARENT, 14, mute)
-        layoutParams = LinearLayout.LayoutParams(0, dp(52), 1f).apply { marginEnd = dp(8) }
+        layoutParams = LinearLayout.LayoutParams(0, dp((52 * scale).toInt()), 1f).apply { marginEnd = dp(8) }
         setOnClickListener { onClick() }
     }
 
     private fun field(value: Int) = EditText(this).apply {
-        setText(value.toString()); textSize = 22f; setTextColor(ink)
+        setText(value.toString()); textSize = 22f * scale; setTextColor(ink)
         inputType = InputType.TYPE_CLASS_NUMBER
         background = shape(bg, 12); setPadding(dp(14), dp(10), dp(14), dp(10))
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6); bottomMargin = dp(12) }
@@ -101,6 +102,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = getSharedPreferences("restlight", Context.MODE_PRIVATE)
+        scale = if (prefs.getBoolean("large", false)) 1.35f else 1f
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -110,6 +112,17 @@ class MainActivity : Activity() {
         root.addView(text("Restlight", 34f, bold = true))
         root.addView(text("Gentle eye care for long study nights", 16f, mute))
 
+        root.addView(CheckBox(this).apply {
+            text = "Large text mode"
+            setTextColor(ink); textSize = 17f * scale
+            isChecked = prefs.getBoolean("large", false)
+            setPadding(0, dp(12), 0, 0)
+            setOnCheckedChangeListener { _, on ->
+                prefs.edit().putBoolean("large", on).apply()
+                recreate()
+            }
+        })
+
         val breaks = cardBox()
         breaks.addView(text("Eye breaks", 20f, bold = true))
         breaks.addView(text("Study time between breaks (minutes)", 15f, mute).apply { setPadding(0, dp(12), 0, 0) })
@@ -118,7 +131,7 @@ class MainActivity : Activity() {
         breakInput = field(prefs.getInt("breakSec", 20)); breaks.addView(breakInput)
         snoozeBox = CheckBox(this).apply {
             text = "Allow one 5-minute postpone per break"
-            setTextColor(ink); isChecked = prefs.getBoolean("snooze", false)
+            setTextColor(ink); textSize = 16f * scale; isChecked = prefs.getBoolean("snooze", false)
         }
         breaks.addView(snoozeBox)
         val row = LinearLayout(this).apply {

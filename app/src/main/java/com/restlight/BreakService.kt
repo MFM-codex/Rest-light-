@@ -114,7 +114,7 @@ class BreakService : Service() {
         fun text(s: String, size: Float, bold: Boolean = false, tag: String? = null) =
             TextView(this).apply {
                 this.text = s
-                textSize = size
+                textSize = size * (if (prefs().getBoolean("large", false)) 1.35f else 1f)
                 setTextColor(Color.parseColor("#F0DCC0"))
                 gravity = Gravity.CENTER
                 setPadding(48, 16, 48, 16)
