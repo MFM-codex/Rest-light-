@@ -2,6 +2,7 @@ package com.restlight
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -100,8 +101,16 @@ class MainActivity : Activity() {
         startForegroundService(Intent(this, BreakService::class.java).setAction("tint"))
     }
 
-    private fun askOverlay() {
-        Toast.makeText(this, "Allow \"Display over other apps\" for Restlight, then try again.", Toast.LENGTH_LONG).show()
+    private fun explain(title: String, message: String, onOk: () -> Unit) {
+        AlertDialog.Builder(this).setTitle(title).setMessage(message)
+            .setPositiveButton("Continue") { _, _ -> onOk() }
+            .setNegativeButton("Not now", null).show()
+    }
+
+    private fun askOverlay() = explain(
+        "Allow display over other apps",
+        "Restlight needs this to show your eye-break screen and the warm and dim filter on top of your other apps.\n\nIt does not read or record what is on your screen.\n\nTap Continue, find Restlight in the list, switch it on, then come back and try again."
+    ) {
         startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
     }
 
@@ -260,8 +269,12 @@ class MainActivity : Activity() {
 
     private fun setPhoneFont(scale: Float) {
         if (!Settings.System.canWrite(this)) {
-            Toast.makeText(this, "Allow \"Modify system settings\" for Restlight, then try again.", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+            explain(
+                "Allow changing phone text size",
+                "Restlight needs this to change the text size across your whole phone, including WhatsApp and other apps.\n\nIt only changes the text size and nothing else.\n\nTap Continue, switch on the permission for Restlight, then come back and move the slider again."
+            ) {
+                startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+            }
             return
         }
         try {
@@ -277,8 +290,14 @@ class MainActivity : Activity() {
         prefs.edit().putInt("workMin", work).putInt("breakSec", brk)
             .putBoolean("snooze", snoozeBox.isChecked).putBoolean("running", true).apply()
         if (!Settings.canDrawOverlays(this)) { askOverlay(); return }
-        if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         startForegroundService(Intent(this, BreakService::class.java))
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            explain(
+                "Allow notifications",
+                "While Restlight runs, Android shows a small notification. It also holds the Filter on/off button.\n\nTap Continue, then choose Allow."
+            ) { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1) }
+        }
         status.text = "Running. First eye break in $work min, lasting $brk sec."
     }
 }
