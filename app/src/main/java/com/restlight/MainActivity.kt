@@ -30,6 +30,7 @@ class MainActivity : Activity() {
     private lateinit var breakInput: EditText
     private lateinit var snoozeBox: CheckBox
     private lateinit var status: TextView
+    private lateinit var statsText: TextView
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
@@ -140,6 +141,7 @@ class MainActivity : Activity() {
         }
         row.addView(pill("Start", true) { start() })
         row.addView(pill("Stop", false) {
+            prefs.edit().putBoolean("running", false).apply()
             stopService(Intent(this, BreakService::class.java))
             status.text = "Stopped. Screen filter is off too."
         })
@@ -154,6 +156,34 @@ class MainActivity : Activity() {
         slider(comfort, "Dimming", "dim", 60)
         comfort.addView(text("Works over every app. Tap Stop to remove it.", 14f, mute).apply { setPadding(0, dp(10), 0, 0) })
         root.addView(comfort)
+
+        val schedCard = cardBox()
+        schedCard.addView(text("Night schedule", 20f, bold = true))
+        val schedBox = CheckBox(this).apply {
+            text = "Filter only during these hours"
+            setTextColor(ink); textSize = 16f * scale; isChecked = prefs.getBoolean("sched", false)
+        }
+        schedCard.addView(schedBox)
+        schedCard.addView(text("Starts at hour (0-23)", 15f, mute))
+        val schedStart = field(prefs.getInt("schedStart", 19)); schedCard.addView(schedStart)
+        schedCard.addView(text("Ends at hour (0-23)", 15f, mute))
+        val schedEnd = field(prefs.getInt("schedEnd", 6)); schedCard.addView(schedEnd)
+        val saveRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        saveRow.addView(pill("Save schedule", true) {
+            prefs.edit().putBoolean("sched", schedBox.isChecked)
+                .putInt("schedStart", schedStart.text.toString().toIntOrNull()?.coerceIn(0, 23) ?: 19)
+                .putInt("schedEnd", schedEnd.text.toString().toIntOrNull()?.coerceIn(0, 23) ?: 6).apply()
+            pushTint()
+            Toast.makeText(this, "Schedule saved", Toast.LENGTH_SHORT).show()
+        })
+        schedCard.addView(saveRow)
+        root.addView(schedCard)
+
+        val statsCard = cardBox()
+        statsCard.addView(text("Your eye breaks", 20f, bold = true))
+        statsText = text(statsLine(), 16f, mute).apply { setPadding(0, dp(8), 0, 0) }
+        statsCard.addView(statsText)
+        root.addView(statsCard)
 
         val fontCard = cardBox()
         fontCard.addView(text("Phone text size (all apps)", 20f, bold = true))
@@ -181,6 +211,18 @@ class MainActivity : Activity() {
         setContentView(ScrollView(this).apply { addView(root); isFillViewport = true; setBackgroundColor(bg) })
     }
 
+    private fun statsLine(): String {
+        val (b, s) = Stats.day(this, 0)
+        var week = 0
+        for (i in 0..6) week += Stats.day(this, i).first
+        return "Today: $b breaks, $s postponed\nLast 7 days: $week breaks"
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::statsText.isInitialized) statsText.text = statsLine()
+    }
+
     private fun setPhoneFont(scale: Float) {
         if (!Settings.System.canWrite(this)) {
             Toast.makeText(this, "Allow \"Modify system settings\" for Restlight, then try again.", Toast.LENGTH_LONG).show()
@@ -198,7 +240,7 @@ class MainActivity : Activity() {
         val work = workInput.text.toString().toIntOrNull()?.coerceIn(1, 120) ?: 20
         val brk = breakInput.text.toString().toIntOrNull()?.coerceIn(5, 600) ?: 20
         prefs.edit().putInt("workMin", work).putInt("breakSec", brk)
-            .putBoolean("snooze", snoozeBox.isChecked).apply()
+            .putBoolean("snooze", snoozeBox.isChecked).putBoolean("running", true).apply()
         if (!Settings.canDrawOverlays(this)) { askOverlay(); return }
         if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         startForegroundService(Intent(this, BreakService::class.java))
